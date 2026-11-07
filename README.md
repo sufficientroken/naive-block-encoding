@@ -34,9 +34,7 @@ print("Ancilla index:", encoding.ancilla_qubit)
 print(encoding.circuit.draw(output="text"))
 
 # Extract the block with the ancilla in state zero at both input and output.
-np.testing.assert_allclose(
-    encoding.encoded_block(), matrix / encoding.alpha, atol=1e-12
-)
+np.testing.assert_allclose(encoding.encoded_block(), matrix / encoding.alpha, atol=1e-12)
 
 # Create a new circuit expressed in u and cx gates.
 synthesized = encoding.transpile()
