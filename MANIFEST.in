@@ -1,0 +1,6 @@
+include README.md
+include AGENTS.md
+include .gitignore
+recursive-include examples *.py *.json
+recursive-include tests *.py
+recursive-include .github *.yml
