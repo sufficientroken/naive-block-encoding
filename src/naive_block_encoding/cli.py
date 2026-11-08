@@ -1,4 +1,4 @@
-"""Generate a Qiskit block-encoding circuit from a square matrix in a JSON file."""
+"""Generate Qiskit block encodings or reproducible random input matrices."""
 
 from __future__ import annotations
 
@@ -11,11 +11,77 @@ from qiskit import qasm2, qpy
 from qiskit.exceptions import QiskitError
 
 from .encoding import block_encode
+from .matrix_generation import random_matrix
+
+
+def _generate_matrix_main(argv: list[str]) -> int:
+    """Write a random square matrix as JSON accepted by the circuit CLI."""
+    parser = argparse.ArgumentParser(
+        prog="naive-block-encoding generate-matrix",
+        description="Generate a reproducible random matrix from two string sources.",
+    )
+    parser.add_argument("--dimension", required=True, type=int, help="Positive matrix dimension")
+    parser.add_argument(
+        "--index", type=int, default=0, help="Nonnegative sequence index (default: 0)"
+    )
+    parser.add_argument(
+        "--complex", dest="complex_entries", action="store_true", help="Generate complex entries"
+    )
+    parser.add_argument("--output", type=Path, help="JSON output path (default: standard output)")
+    parser.add_argument("--strings-a", type=Path, help="First UTF-8 source; requires --strings-b")
+    parser.add_argument("--strings-b", type=Path, help="Second UTF-8 source; requires --strings-a")
+    args = parser.parse_args(argv)
+    if (args.strings_a is None) != (args.strings_b is None):
+        parser.error("--strings-a and --strings-b must be provided together")
+
+    try:
+        bundled_paths = [
+            Path(__file__).parent / "data" / name
+            for name in ("random_strings_a.txt", "random_strings_b.txt")
+        ]
+        custom_paths = [] if args.strings_a is None else [args.strings_a, args.strings_b]
+        if args.output is not None:
+            for source in bundled_paths + custom_paths:
+                if args.output.resolve() == source.resolve() or (
+                    args.output.exists() and source.exists() and args.output.samefile(source)
+                ):
+                    raise ValueError("output would overwrite a source string file")
+        sources = (
+            tuple(path.read_text(encoding="utf-8") for path in custom_paths)
+            if custom_paths
+            else None
+        )
+        matrix = random_matrix(
+            args.dimension,
+            index=args.index,
+            complex_entries=args.complex_entries,
+            sources=sources,
+        )
+        values = (
+            [[str(value) for value in row] for row in matrix.tolist()]
+            if args.complex_entries
+            else matrix.tolist()
+        )
+        content = json.dumps(values, indent=2, allow_nan=False) + "\n"
+        if args.output is None:
+            print(content, end="")
+        else:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(content, encoding="utf-8")
+    except (OSError, ValueError, TypeError) as exc:
+        parser.error(str(exc))
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     """Generate a circuit and retain its normalization and global-phase metadata."""
-    parser = argparse.ArgumentParser(description=__doc__)
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv and argv[0] == "generate-matrix":
+        return _generate_matrix_main(argv[1:])
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        epilog="Use 'generate-matrix --help' to generate a random JSON input matrix.",
+    )
     parser.add_argument("--matrix", required=True, type=Path, help="Path to the input JSON matrix")
     parser.add_argument("--alpha", type=float, help="Positive normalization >= the spectral norm")
     parser.add_argument(

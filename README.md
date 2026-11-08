@@ -109,6 +109,39 @@ The installed `naive-block-encoding` command accepts the same arguments as `pyth
 
 Text and QASM output go to standard output when `--output` is omitted. Parent directories are created automatically. Every file export writes a JSON sidecar at `<output path>.json`, such as `output/circuit.qasm.json`. It records the normalization, dimensions, ancilla index, global phase, and circuit statistics. The CLI also prints this metadata to standard error. Output paths that would overwrite the input matrix are rejected.
 
+## Random matrices from the supplied strings
+
+The original `random_strings_a.txt` and `random_strings_b.txt` files are stored in `src/naive_block_encoding/data/` and included in installed packages. The generator uses the complete contents of both files, in A-then-B order, as seed material. The strings are treated as text without Base64 decoding or execution.
+
+```powershell
+# Generate a reproducible 3 x 3 real matrix using both bundled files.
+python -m naive_block_encoding generate-matrix --dimension 3 --output output/random_matrix.json
+
+# Select another matrix and include imaginary components.
+python -m naive_block_encoding generate-matrix --dimension 3 --index 1 --complex --output output/random_complex.json
+
+# Pass the generated matrix directly to the block-encoding CLI.
+python -m naive_block_encoding --matrix output/random_complex.json --format qpy --output output/random_circuit.qpy
+```
+
+`generate-matrix` writes only a JSON matrix, with complex entries represented as Python-style strings. Omitting `--output` prints the JSON to standard output. Output directories are created automatically. To use other UTF-8 text files, supply both `--strings-a PATH` and `--strings-b PATH`. Output paths that overwrite either a custom input or a bundled source file are rejected.
+
+The same functionality is available through the Python API:
+
+```python
+from naive_block_encoding import block_encode, random_matrix
+
+matrix = random_matrix(3, index=1, complex_entries=True)
+encoding = block_encode(matrix)
+
+# Optionally supply two text strings instead of reading the bundled files.
+custom_matrix = random_matrix(2, sources=("first source", "second source"))
+```
+
+`random_matrix(dimension, *, index=0, complex_entries=False, sources=None)` returns a square NumPy array. The dimension must be a positive integer and the index must be a nonnegative integer. An explicit `sources` value must be a tuple of two nonempty, non-whitespace-only strings. Real entries are sampled uniformly from `[-1, 1)`. Complex entries have separately sampled real and imaginary components in that interval. Generation does not normalize or pad the matrix; `block_encode` handles those steps as usual.
+
+For fixed source text, dimension, index, and entry type, the result is reproducible. Increment `index` to select another pseudorandom matrix. CRLF and CR line endings are converted to LF before hashing; all other text, including trailing newlines, is preserved. SHA-256 hashes the domain tag `naive-block-encoding/random-matrix/v1` followed by a null byte, then the UTF-8 bytes of each source and the ASCII decimal index, each prefixed by its byte length as an unsigned 8-byte big-endian integer. The digest becomes a big-endian integer seed for NumPy's explicit [`PCG64`](https://numpy.org/doc/stable/reference/random/bit_generators/pcg64.html) generator. Sampling uses `2 * rng.random((dimension, dimension)) - 1`, first for the real components and then, when requested, for the imaginary components. NumPy's global random state is left unchanged. These public sources and reproducible outputs are intended for numerical experiments, not cryptographic randomness.
+
 ## Reloading circuits and preserving phase
 
 QPY preserves the circuit's global phase and metadata, making it convenient for reuse in Qiskit:
@@ -183,7 +216,8 @@ The implementation does not provide sparse-access oracles, LCU constructions, or
 Repository layout:
 
 ```text
-src/naive_block_encoding/  Circuit construction, Python API, and CLI
+src/naive_block_encoding/  Circuit construction, matrix generation, API, and CLI
+src/naive_block_encoding/data/  Original string sources used by the generator
 examples/                  Runnable example and JSON input matrix
 tests/                     Numerical and command-line tests
 .github/workflows/         Continuous integration configuration
@@ -199,7 +233,7 @@ python -m pytest
 python examples/basic.py
 ```
 
-The tests check unitary correctness, recovery of the encoded matrix, non-Hermitian complex inputs, zero padding, scalar and zero matrices, ancilla ordering, statevector postselection, phase preservation after synthesis, CLI exports, QPY and QASM round trips, invalid inputs, and extreme numerical scales.
+The tests check unitary correctness, recovery of the encoded matrix, non-Hermitian complex inputs, zero padding, scalar and zero matrices, ancilla ordering, statevector postselection, phase preservation after synthesis, CLI exports, QPY and QASM round trips, invalid inputs, and extreme numerical scales. Matrix-generation tests cover reproducibility, both string sources, index selection, line endings, real and complex entries, JSON reuse, and preservation of source files.
 
 GitHub Actions is configured to run linting, formatting checks, tests, and the example on Windows and Ubuntu with Python 3.10 and 3.12. The local verification environment uses Windows, Python 3.12.14, Qiskit 2.6.2, and NumPy 2.5.4.
 

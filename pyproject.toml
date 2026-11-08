@@ -19,6 +19,9 @@ naive-block-encoding = "naive_block_encoding.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+naive_block_encoding = ["data/*.txt"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"

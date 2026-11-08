@@ -1,0 +1,2 @@
+# Preserve the original bytes of the bundled string sources on every platform.
+src/naive_block_encoding/data/random_strings_*.txt -text

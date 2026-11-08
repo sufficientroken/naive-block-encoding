@@ -1,6 +1,8 @@
 include README.md
 include AGENTS.md
 include .gitignore
+include .gitattributes
+recursive-include src/naive_block_encoding/data *.txt
 recursive-include examples *.py *.json
 recursive-include tests *.py
 recursive-include .github *.yml
